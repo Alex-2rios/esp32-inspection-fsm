@@ -1,5 +1,7 @@
 # ESP32 inspection station
 
+[![ci](https://github.com/Alex-2rios/esp32-inspection-fsm/actions/workflows/ci.yml/badge.svg)](https://github.com/Alex-2rios/esp32-inspection-fsm/actions/workflows/ci.yml)
+
 A part inspection cell driven by an explicit finite state machine. A sensor detects a part, an
 ultrasonic sensor measures its height, and a servo gate sends it down the accept or the reject
 path. Nothing in `loop()` blocks, so the e-stop is honoured within one cycle no matter what the
@@ -64,6 +66,17 @@ pio device monitor
 
 You do not need the mechanical rig to see it work. Ground the presence pin to fake a part and
 watch the transitions scroll past in the monitor.
+
+CI builds the firmware and runs cppcheck on every push. The whole state machine, the servo
+library and the serial logging fit in:
+
+```
+RAM:   [=         ]   6.6% (used 21788 bytes from 327680 bytes)
+Flash: [==        ]  21.6% (used 283057 bytes from 1310720 bytes)
+```
+
+There is a lot of room left, which is the argument for keeping the logging verbose rather than
+trimming it to save space that nothing else is asking for.
 
 ## What I learned
 
