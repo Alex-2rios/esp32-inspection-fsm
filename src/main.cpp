@@ -2,85 +2,48 @@
 #include <ESP32Servo.h>
 
 #include "config.h"
+#include "inspection.h"
 
-enum State {
-    STATE_BOOT,
-    STATE_IDLE,
-    STATE_PART_DETECTED,
-    STATE_SETTLING,
-    STATE_MEASURING,
-    STATE_DECIDING,
-    STATE_ACTUATING,
-    STATE_CLEARING,
-    STATE_FAULT,
-    STATE_ESTOP
-};
+using inspection::Gate;
+using inspection::Inputs;
+using inspection::Limits;
+using inspection::Machine;
+using inspection::Outputs;
+using inspection::State;
 
-static const char *stateName(State s) {
-    switch (s) {
-        case STATE_BOOT:          return "BOOT";
-        case STATE_IDLE:          return "IDLE";
-        case STATE_PART_DETECTED: return "PART_DETECTED";
-        case STATE_SETTLING:      return "SETTLING";
-        case STATE_MEASURING:     return "MEASURING";
-        case STATE_DECIDING:      return "DECIDING";
-        case STATE_ACTUATING:     return "ACTUATING";
-        case STATE_CLEARING:      return "CLEARING";
-        case STATE_FAULT:         return "FAULT";
-        case STATE_ESTOP:         return "ESTOP";
-    }
-    return "UNKNOWN";
+static Limits buildLimits() {
+    Limits limits;
+    limits.target_mm = TARGET_HEIGHT_MM;
+    limits.tolerance_mm = TOLERANCE_MM;
+    limits.sensor_offset_mm = SENSOR_OFFSET_MM;
+    limits.settle_ms = SETTLE_MS;
+    limits.sample_gap_ms = SAMPLE_GAP_MS;
+    limits.measure_timeout_ms = MEASURE_TIMEOUT_MS;
+    limits.actuator_ms = ACTUATOR_MS;
+    limits.clear_timeout_ms = CLEAR_TIMEOUT_MS;
+    limits.measure_samples = MEASURE_SAMPLES;
+    return limits;
 }
 
 Servo gate;
+static Machine machine(buildLimits());
 
-static State state = STATE_BOOT;
-static unsigned long stateEnteredAt = 0;
-
-static float samples[MEASURE_SAMPLES];
-static uint8_t sampleIndex = 0;
-static unsigned long lastSampleAt = 0;
-
-static float lastHeight = 0;
-static bool lastVerdictPass = false;
-static const char *faultReason = "";
-
-static uint32_t partsTotal = 0;
-static uint32_t partsPassed = 0;
-static uint32_t partsFailed = 0;
-static uint32_t faults = 0;
+static uint32_t lastTransitionAt = 0;
+static State lastLoggedState = State::Boot;
 
 static bool buttonStable = false;
 static bool buttonRaw = false;
-static unsigned long buttonChangedAt = 0;
+static uint32_t buttonChangedAt = 0;
 
-static unsigned long elapsed() {
-    return millis() - stateEnteredAt;
-}
-
-static void transition(State next) {
-    Serial.printf("[%8lu] %-14s -> %-14s after %lu ms\n",
-                  millis(), stateName(state), stateName(next), elapsed());
-    state = next;
-    stateEnteredAt = millis();
-}
-
-static bool partPresent() {
-    return digitalRead(PIN_PRESENCE) == LOW;
-}
-
-static bool estopActive() {
-    return digitalRead(PIN_ESTOP) == LOW;
-}
-
-static bool buttonPressed() {
+static bool readResetButton(uint32_t now) {
     bool raw = digitalRead(PIN_BUTTON) == LOW;
+
     if (raw != buttonRaw) {
         buttonRaw = raw;
-        buttonChangedAt = millis();
+        buttonChangedAt = now;
         return false;
     }
-    if (millis() - buttonChangedAt < DEBOUNCE_MS) {
+    if (now - buttonChangedAt < DEBOUNCE_MS) {
         return false;
     }
     if (raw != buttonStable) {
@@ -104,52 +67,49 @@ static float readDistanceMm() {
     return (us * 0.343f) / 2.0f;
 }
 
-static float medianOf(float *values, uint8_t n) {
-    float sorted[MEASURE_SAMPLES];
-    memcpy(sorted, values, sizeof(float) * n);
-    for (uint8_t i = 1; i < n; i++) {
-        float key = sorted[i];
-        int8_t j = i - 1;
-        while (j >= 0 && sorted[j] > key) {
-            sorted[j + 1] = sorted[j];
-            j--;
-        }
-        sorted[j + 1] = key;
+static void applyOutputs(const Outputs &out) {
+    switch (out.gate) {
+        case Gate::Accept: gate.write(SERVO_PASS_DEG); break;
+        case Gate::Reject: gate.write(SERVO_REJECT_DEG); break;
+        case Gate::Home:   gate.write(SERVO_HOME_DEG); break;
     }
-    return sorted[n / 2];
+
+    digitalWrite(PIN_LED_PASS, out.led_pass ? HIGH : LOW);
+    digitalWrite(PIN_LED_FAIL, out.led_fail ? HIGH : LOW);
+
+    if (out.buzzer_ms > 0) {
+        tone(PIN_BUZZER, out.buzzer_hz, out.buzzer_ms);
+    }
 }
 
-static void signalResult(bool pass) {
-    digitalWrite(PIN_LED_PASS, pass ? HIGH : LOW);
-    digitalWrite(PIN_LED_FAIL, pass ? LOW : HIGH);
-    tone(PIN_BUZZER, pass ? 1800 : 400, pass ? 90 : 300);
-}
+static void logTransition(uint32_t now) {
+    Serial.printf("[%8lu] %-14s -> %-14s after %lu ms\n",
+                  static_cast<unsigned long>(now),
+                  inspection::name(lastLoggedState),
+                  inspection::name(machine.state()),
+                  static_cast<unsigned long>(now - lastTransitionAt));
 
-static void clearSignals() {
-    digitalWrite(PIN_LED_PASS, LOW);
-    digitalWrite(PIN_LED_FAIL, LOW);
-    noTone(PIN_BUZZER);
-}
+    if (machine.state() == State::Fault) {
+        Serial.printf("[%8lu] fault %lu: %s\n",
+                      static_cast<unsigned long>(now),
+                      static_cast<unsigned long>(machine.counters().faults),
+                      inspection::name(machine.fault()));
+    }
 
-static void enterFault(const char *reason) {
-    faultReason = reason;
-    faults++;
-    gate.write(SERVO_HOME_DEG);
-    digitalWrite(PIN_LED_PASS, LOW);
-    digitalWrite(PIN_LED_FAIL, HIGH);
-    Serial.printf("[%8lu] fault: %s\n", millis(), reason);
-    transition(STATE_FAULT);
+    lastLoggedState = machine.state();
+    lastTransitionAt = now;
 }
 
 static void reportPart() {
+    const inspection::Counters &counters = machine.counters();
     Serial.printf("part,%lu,%s,%.1f,%.1f,%.1f,%lu,%lu\n",
-                  partsTotal,
-                  lastVerdictPass ? "pass" : "fail",
-                  lastHeight,
+                  static_cast<unsigned long>(counters.total),
+                  machine.last_verdict_pass() ? "pass" : "fail",
+                  machine.last_height_mm(),
                   TARGET_HEIGHT_MM,
                   TOLERANCE_MM,
-                  partsPassed,
-                  partsFailed);
+                  static_cast<unsigned long>(counters.passed),
+                  static_cast<unsigned long>(counters.failed));
 }
 
 void setup() {
@@ -169,117 +129,41 @@ void setup() {
     gate.attach(PIN_SERVO, 500, 2400);
     gate.write(SERVO_HOME_DEG);
 
-    clearSignals();
+    digitalWrite(PIN_LED_PASS, LOW);
+    digitalWrite(PIN_LED_FAIL, LOW);
+
+    uint32_t now = millis();
+    machine.begin(now);
+    lastTransitionAt = now;
+    lastLoggedState = machine.state();
 
     Serial.println();
     Serial.println("inspection station ready");
     Serial.printf("target %.1f mm, tolerance +/- %.1f mm\n", TARGET_HEIGHT_MM, TOLERANCE_MM);
     Serial.println("csv columns: part,index,verdict,measured_mm,target_mm,tolerance_mm,passed,failed");
-
-    stateEnteredAt = millis();
-    transition(STATE_IDLE);
 }
 
 void loop() {
-    if (estopActive() && state != STATE_ESTOP) {
-        gate.write(SERVO_HOME_DEG);
-        clearSignals();
-        digitalWrite(PIN_LED_FAIL, HIGH);
-        transition(STATE_ESTOP);
-        return;
+    uint32_t now = millis();
+
+    if (machine.wants_sample(now)) {
+        machine.push_sample(now, readDistanceMm());
     }
 
-    switch (state) {
+    Inputs in;
+    in.now_ms = now;
+    in.part_present = digitalRead(PIN_PRESENCE) == LOW;
+    in.estop_active = digitalRead(PIN_ESTOP) == LOW;
+    in.reset_pressed = readResetButton(now);
 
-    case STATE_IDLE:
-        if (partPresent()) {
-            transition(STATE_PART_DETECTED);
-        }
-        break;
+    Outputs out = machine.step(in);
 
-    case STATE_PART_DETECTED:
-        partsTotal++;
-        clearSignals();
-        transition(STATE_SETTLING);
-        break;
+    applyOutputs(out);
 
-    case STATE_SETTLING:
-        if (!partPresent()) {
-            transition(STATE_IDLE);
-        } else if (elapsed() >= SETTLE_MS) {
-            sampleIndex = 0;
-            lastSampleAt = 0;
-            transition(STATE_MEASURING);
-        }
-        break;
-
-    case STATE_MEASURING:
-        if (elapsed() > MEASURE_TIMEOUT_MS) {
-            enterFault("measurement timeout, no echo from the sensor");
-            break;
-        }
-        if (millis() - lastSampleAt >= SAMPLE_GAP_MS) {
-            lastSampleAt = millis();
-            float mm = readDistanceMm();
-            if (!isnan(mm)) {
-                samples[sampleIndex++] = SENSOR_OFFSET_MM - mm;
-            }
-            if (sampleIndex >= MEASURE_SAMPLES) {
-                lastHeight = medianOf(samples, MEASURE_SAMPLES);
-                transition(STATE_DECIDING);
-            }
-        }
-        break;
-
-    case STATE_DECIDING:
-        lastVerdictPass = fabsf(lastHeight - TARGET_HEIGHT_MM) <= TOLERANCE_MM;
-        if (lastVerdictPass) {
-            partsPassed++;
-            gate.write(SERVO_PASS_DEG);
-        } else {
-            partsFailed++;
-            gate.write(SERVO_REJECT_DEG);
-        }
-        signalResult(lastVerdictPass);
+    if (out.report_part) {
         reportPart();
-        transition(STATE_ACTUATING);
-        break;
-
-    case STATE_ACTUATING:
-        if (elapsed() >= ACTUATOR_MS) {
-            gate.write(SERVO_HOME_DEG);
-            transition(STATE_CLEARING);
-        }
-        break;
-
-    case STATE_CLEARING:
-        if (!partPresent()) {
-            clearSignals();
-            transition(STATE_IDLE);
-        } else if (elapsed() > CLEAR_TIMEOUT_MS) {
-            enterFault("part never left the fixture, possible jam");
-        }
-        break;
-
-    case STATE_FAULT:
-        if (buttonPressed()) {
-            Serial.printf("[%8lu] fault %lu cleared by operator, was: %s\n",
-                          millis(), faults, faultReason);
-            clearSignals();
-            gate.write(SERVO_HOME_DEG);
-            transition(STATE_IDLE);
-        }
-        break;
-
-    case STATE_ESTOP:
-        if (!estopActive() && buttonPressed()) {
-            clearSignals();
-            transition(STATE_IDLE);
-        }
-        break;
-
-    case STATE_BOOT:
-        transition(STATE_IDLE);
-        break;
+    }
+    if (out.state_changed) {
+        logTransition(now);
     }
 }
