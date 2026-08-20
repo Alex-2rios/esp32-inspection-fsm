@@ -38,6 +38,45 @@ stateDiagram-v2
 
 State by state notes, timings and the serial format are in [docs/states.md](docs/states.md).
 
+## The firmware is testable without a board
+
+The state machine lives in `lib/inspection/`, and it does not include a single Arduino header. It
+takes an `Inputs` struct and returns an `Outputs` struct:
+
+```cpp
+Inputs in;
+in.now_ms = millis();
+in.part_present = digitalRead(PIN_PRESENCE) == LOW;
+in.estop_active = digitalRead(PIN_ESTOP) == LOW;
+in.reset_pressed = readResetButton(now);
+
+Outputs out = machine.step(in);
+applyOutputs(out);
+```
+
+`main.cpp` reads pins and writes pins. Everything that decides anything is in the library. That
+split is what lets the whole thing run as a normal program on a laptop:
+
+```bash
+make test
+```
+
+```
+23 test cases: 23 succeeded
+```
+
+Twenty three tests covering the median filter, the verdict boundaries, every timeout, the e-stop
+behaviour and a three part production run, none of which need a servo, an ultrasonic sensor or a
+board plugged in. They run in CI on every push, in about nine seconds.
+
+The tests that matter most are the ones that are hard to check by hand:
+
+- an e-stop pressed mid measurement stops the machine on that same cycle
+- releasing the e-stop is not enough to restart, reset has to be pressed too
+- a part is counted exactly once, even when the presence sensor stays high
+- the CSV line is emitted exactly once per part
+- readings that come back as NaN never enter the median
+
 ## Hardware
 
 | Pin | Device | Notes |
@@ -95,6 +134,29 @@ trimming it to save space that nothing else is asking for.
 - Logging every transition with the time spent in the previous state made tuning the delays a
   measurement instead of a guess. `ACTUATING` was 1500 ms until the log showed the servo settling
   in well under 600 ms.
+- Separating the decisions from the pins is what made this testable, and the tests immediately
+  paid for themselves. Writing the e-stop tests is how I found that my first version let the
+  machine resume the moment the button popped back out.
+- Passing time in as `now_ms` instead of calling `millis()` inside the logic means a test can
+  jump forward five seconds instantly. Timeouts that would take a minute to check by hand are
+  covered in microseconds.
+
+## Working on this
+
+```bash
+make help
+```
+
+The usual ones: `make build, make test, make upload, make monitor`.
+
+Every push runs the CI workflow described above. A second workflow, `security.yml`, runs weekly
+and on every push: it scans the history for committed secrets with gitleaks.
+
+Dependabot opens pull requests for the GitHub Actions and the dependencies once a week.
+
+Line endings are pinned to LF through `.gitattributes`, because half of this was written on
+Windows and shell scripts with carriage returns fail on Linux in a way that is genuinely
+confusing the first time.
 
 ## Next
 
