@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" width="940" height="560" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="940" height="560" fill="#ffffff"/>
+  <text x="28" y="38" font-size="19" font-weight="600" fill="#111827">esp32-inspection-fsm — wiring</text>
+  <text x="28" y="58" font-size="12" fill="#6b7280">ESP32 DevKit v1. The servo runs off its own 5 V supply with a common ground, never off the board.</text>
+
+  <rect x="360" y="96" width="200" height="384" rx="10" fill="#1f2937" stroke="#111827"/>
+  <text x="460" y="126" font-size="14" font-weight="600" text-anchor="middle" fill="#f9fafb">ESP32 DevKit v1</text>
+  <rect x="392" y="140" width="136" height="28" rx="4" fill="#374151"/>
+  <text x="460" y="159" font-size="11" text-anchor="middle" fill="#d1d5db">USB / 5V in</text>
+
+  <text x="372" y="204" font-size="12" fill="#93c5fd">GPIO15</text>
+  <text x="372" y="242" font-size="12" fill="#93c5fd">GPIO16</text>
+  <text x="372" y="266" font-size="12" fill="#93c5fd">GPIO17</text>
+  <text x="372" y="304" font-size="12" fill="#93c5fd">GPIO13</text>
+  <text x="372" y="342" font-size="12" fill="#93c5fd">GPIO23</text>
+  <text x="372" y="440" font-size="12" fill="#93c5fd">GND</text>
+
+  <text x="548" y="204" font-size="12" text-anchor="end" fill="#93c5fd">GPIO18</text>
+  <text x="548" y="266" font-size="12" text-anchor="end" fill="#93c5fd">GPIO19</text>
+  <text x="548" y="304" font-size="12" text-anchor="end" fill="#93c5fd">GPIO21</text>
+  <text x="548" y="342" font-size="12" text-anchor="end" fill="#93c5fd">GPIO22</text>
+
+  <circle cx="360" cy="200" r="4" fill="#f59e0b"/>
+  <circle cx="360" cy="238" r="4" fill="#f59e0b"/>
+  <circle cx="360" cy="262" r="4" fill="#f59e0b"/>
+  <circle cx="360" cy="300" r="4" fill="#f59e0b"/>
+  <circle cx="360" cy="338" r="4" fill="#f59e0b"/>
+  <circle cx="360" cy="436" r="4" fill="#f59e0b"/>
+  <circle cx="560" cy="200" r="4" fill="#f59e0b"/>
+  <circle cx="560" cy="262" r="4" fill="#f59e0b"/>
+  <circle cx="560" cy="300" r="4" fill="#f59e0b"/>
+  <circle cx="560" cy="338" r="4" fill="#f59e0b"/>
+
+  <rect x="60" y="176" width="180" height="48" rx="8" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="150" y="196" font-size="13" font-weight="600" text-anchor="middle" fill="#1e3a8a">IR presence sensor</text>
+  <text x="150" y="214" font-size="11" text-anchor="middle" fill="#1d4ed8">active low, internal pull-up</text>
+
+  <rect x="60" y="234" width="180" height="60" rx="8" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="150" y="256" font-size="13" font-weight="600" text-anchor="middle" fill="#1e3a8a">HC-SR04</text>
+  <text x="150" y="274" font-size="11" text-anchor="middle" fill="#1d4ed8">trig 16, echo 17</text>
+  <text x="150" y="289" font-size="10" text-anchor="middle" fill="#3b82f6">echo through a 1k/2k divider</text>
+
+  <rect x="60" y="304" width="180" height="60" rx="8" fill="#fef2f2" stroke="#dc2626"/>
+  <text x="150" y="326" font-size="13" font-weight="600" text-anchor="middle" fill="#7f1d1d">E-stop</text>
+  <text x="150" y="344" font-size="11" text-anchor="middle" fill="#b91c1c">normally closed</text>
+  <text x="150" y="359" font-size="10" text-anchor="middle" fill="#ef4444">a cut wire reads as pressed</text>
+
+  <rect x="60" y="374" width="180" height="48" rx="8" fill="#f8fafc" stroke="#64748b"/>
+  <text x="150" y="394" font-size="13" font-weight="600" text-anchor="middle" fill="#0f172a">Reset button</text>
+  <text x="150" y="412" font-size="11" text-anchor="middle" fill="#475569">clears a fault, active low</text>
+
+  <rect x="680" y="176" width="196" height="60" rx="8" fill="#fffbeb" stroke="#d97706"/>
+  <text x="778" y="198" font-size="13" font-weight="600" text-anchor="middle" fill="#78350f">SG90 gate servo</text>
+  <text x="778" y="216" font-size="11" text-anchor="middle" fill="#92400e">home 90, accept 150, reject 30</text>
+  <text x="778" y="231" font-size="10" text-anchor="middle" fill="#b45309">external 5 V, common ground</text>
+
+  <rect x="680" y="246" width="196" height="48" rx="8" fill="#f0fdf4" stroke="#16a34a"/>
+  <text x="778" y="266" font-size="13" font-weight="600" text-anchor="middle" fill="#14532d">Pass LED</text>
+  <text x="778" y="284" font-size="11" text-anchor="middle" fill="#15803d">with a 220R resistor</text>
+
+  <rect x="680" y="304" width="196" height="48" rx="8" fill="#fef2f2" stroke="#dc2626"/>
+  <text x="778" y="324" font-size="13" font-weight="600" text-anchor="middle" fill="#7f1d1d">Fail LED</text>
+  <text x="778" y="342" font-size="11" text-anchor="middle" fill="#b91c1c">with a 220R resistor</text>
+
+  <rect x="680" y="362" width="196" height="48" rx="8" fill="#f5f3ff" stroke="#7c3aed"/>
+  <text x="778" y="382" font-size="13" font-weight="600" text-anchor="middle" fill="#4c1d95">Buzzer</text>
+  <text x="778" y="400" font-size="11" text-anchor="middle" fill="#6d28d9">1800 Hz pass, 400 Hz fail</text>
+
+  <path d="M240 200 L354 200" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M240 258 L300 258 L300 238 L354 238" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M240 274 L288 274 L288 262 L354 262" stroke="#334155" stroke-width="2" fill="none"/>
+  <path d="M240 330 L310 330 L310 300 L354 300" stroke="#dc2626" stroke-width="2" fill="none"/>
+  <path d="M240 396 L322 396 L322 338 L354 338" stroke="#334155" stroke-width="2" fill="none"/>
+
+  <path d="M566 200 L674 200" stroke="#d97706" stroke-width="2" fill="none"/>
+  <path d="M566 262 L620 262 L620 268 L674 268" stroke="#16a34a" stroke-width="2" fill="none"/>
+  <path d="M566 300 L620 300 L620 326 L674 326" stroke="#dc2626" stroke-width="2" fill="none"/>
+  <path d="M566 338 L640 338 L640 384 L674 384" stroke="#7c3aed" stroke-width="2" fill="none"/>
+
+  <path d="M240 420 L332 420 L332 436 L354 436" stroke="#111827" stroke-width="2" fill="none"/>
+  <text x="286" y="414" font-size="10" text-anchor="middle" fill="#111827">common ground</text>
+
+  <rect x="60" y="446" width="816" height="88" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="78" y="470" font-size="12" font-weight="600" fill="#334155">two details that are not optional</text>
+  <text x="78" y="492" font-size="11" fill="#475569">The e-stop is normally closed. Wired that way a broken wire or a loose connector reads exactly like someone hitting the</text>
+  <text x="78" y="510" font-size="11" fill="#475569">button, and the machine stops. Normally open fails silently, which is the wrong direction to fail in.</text>
+  <text x="78" y="528" font-size="11" fill="#475569">The HC-SR04 echo pin outputs 5 V. It goes through a divider before GPIO17, which is a 3.3 V input.</text>
+</svg>

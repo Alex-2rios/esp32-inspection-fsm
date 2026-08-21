@@ -79,6 +79,8 @@ The tests that matter most are the ones that are hard to check by hand:
 
 ## Hardware
 
+![Wiring](docs/wiring.svg)
+
 | Pin | Device | Notes |
 |---|---|---|
 | GPIO15 | IR presence sensor | active low, internal pull-up |
